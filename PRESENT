@@ -1,0 +1,231 @@
+# 🎤 PRESENTATION SCRIPT - What to Say to Your Professor
+
+## OPENING (30 seconds)
+
+> "Sir, I built a **Secure FTP Server with Web Frontend** for my Computer Security lab project.
+> 
+> Originally, my project was a basic FTP server with a web interface - but it had **NO security**.
+> The password was stored in plaintext as 'password123', FTP sent credentials in clear text,
+> there was no protection against brute-force attacks, no CSRF protection, and no logging.
+> 
+> For this Computer Security course, I implemented **10 security features** to fix all those
+> vulnerabilities. Let me explain each one."
+
+---
+
+## FEATURE 1: Password Hashing with PBKDF2 (1 minute)
+
+**What to say:**
+> "The first and most important security feature is **Password Hashing**.
+> 
+> Before: The password 'password123' was stored directly in the source code in plaintext.
+> Anyone who read the code could see the password.
+> 
+> After: I implemented **PBKDF2** - Password-Based Key Derivation Function 2.
+> This is the OWASP-recommended method for password storage.
+> 
+> How it works:
+> 1. When a user creates an account, their password is combined with a random **salt**
+>    (16 bytes of random data)
+> 2. Then it's hashed using **HMAC-SHA256** with 1000 iterations
+> 3. Only the HASH is stored in `users.json` - never the plaintext password
+> 4. The salt prevents **rainbow table attacks** (precomputed hash attacks)
+> 5. The iterations make each hash attempt slow, preventing brute-force attacks
+> 
+> I also used **constant-time comparison** with `hmac.compare_digest()` to prevent
+> **timing attacks** - where an attacker measures how long verification takes to
+> guess the password."
+
+**Show the professor:**
+- Open `users.json` → show the hashed password
+- Open `security_utils.py` → show `hash_password()` function
+
+---
+
+## FEATURE 2: CSRF Protection (45 seconds)
+
+**What to say:**
+> "The second feature is **CSRF Protection** - Cross-Site Request Forgery defense.
+> 
+> CSRF is an attack where a malicious website tricks a logged-in user into submitting
+> a form to our site without their knowledge. For example, deleting a file.
+> 
+> I implemented CSRF tokens:
+> 1. Every form gets a random **CSRF token** (hidden field)
+> 2. The token is stored in the user's session
+> 3. When the form is submitted, the server compares the token
+> 4. If the token doesn't match, the request is REJECTED
+> 5. An attacker's website cannot know this token, so they can't forge requests
+> 
+> This is related to Computer Security because it's a core web security defense
+> mechanism taught in the course."
+
+**Show the professor:**
+- Open `templates/files.html` → show `<input type="hidden" name="csrf_token">`
+- Open `security_utils.py` → show `CSRFProtect` class
+
+---
+
+## FEATURE 3: Brute-Force Defense / Rate Limiting (45 seconds)
+
+**What to say:**
+> "The third feature is **Brute-Force Attack Defense** using account lockout.
+> 
+> A brute-force attack is when an attacker tries thousands of passwords to guess
+> the correct one. Without protection, they could eventually succeed.
+> 
+> I implemented a **LoginAttemptTracker**:
+> 1. After **5 failed login attempts**, the account is **locked**
+> 2. The lockout lasts for **15 minutes**
+> 3. During lockout, even the correct password won't work
+> 4. All failed attempts are logged in the security log
+> 
+> This makes brute-force attacks impractical - an attacker would need
+> 15 minutes per 5 attempts, meaning trying 1 million passwords would take
+> over 3 years."
+
+**Show the professor:**
+- Open `security_utils.py` → show `LoginAttemptTracker` class
+- Open `config.py` → show `MAX_LOGIN_ATTEMPTS = 5`
+
+---
+
+## FEATURE 4: TLS/FTPS Encryption (1 minute)
+
+**What to say:**
+> "The fourth feature is **Encryption in Transit** using TLS.
+> 
+> Standard FTP sends everything in **plaintext** - including the username and password.
+> Anyone on the same network (like WiFi) can capture the credentials using a packet sniffer.
+> 
+> I implemented **FTPS** - FTP over TLS:
+> 1. I generated a self-signed **X.509 certificate** using RSA-2048
+> 2. The FTP server uses `TLS_FTPHandler` from pyftpdlib
+> 3. Both the **control channel** (commands/login) and **data channel** (file transfers)
+>    are encrypted with TLS
+> 4. This means credentials and files are encrypted end-to-end
+> 
+> This is related to Computer Security because **Transport Layer Security (TLS)**
+> is a fundamental concept - it's what HTTPS uses to secure web traffic."
+
+**Show the professor:**
+- Open `certs/cert.pem` → show the certificate
+- Open `generate_cert.py` → show how the certificate was generated
+- Open `ftp_server.py` → show `SecureFTPHandler` class
+
+---
+
+## FEATURE 5: Path Traversal Prevention (45 seconds)
+
+**What to say:**
+> "The fifth feature is **Path Traversal Attack Prevention**.
+> 
+> A path traversal attack is when an attacker tries to access files outside the
+> allowed directory by using `../` in the file path. For example:
+> `../../etc/passwd` could access system password files on Linux.
+> 
+> I implemented input validation:
+> 1. `sanitize_ftp_path()` - blocks `..` and absolute paths
+> 2. `sanitize_filename()` - strips directory components from filenames
+> 3. Blocks dangerous file extensions (.exe, .py, .php, .bat, etc.)
+> 4. Blocks hidden files (files starting with `.`)
+> 
+> This is related to Computer Security because **input validation** is the
+> first line of defense against many attacks."
+
+**Show the professor:**
+- Open `security_utils.py` → show `sanitize_ftp_path()` and `sanitize_filename()`
+
+---
+
+## FEATURE 6: Security Headers (30 seconds)
+
+**What to say:**
+> "The sixth feature is **HTTP Security Headers**.
+> 
+> I added security headers to every HTTP response:
+> - `X-Frame-Options: DENY` - prevents **clickjacking** attacks
+> - `X-Content-Type-Options: nosniff` - prevents MIME-type sniffing
+> - `Content-Security-Policy` - controls what resources can load
+> - `Cache-Control: no-store` - prevents caching of sensitive pages
+> 
+> This is **defense in depth** - multiple layers of security."
+
+**Show the professor:**
+- Open `config.py` → show `SECURITY_HEADERS` dictionary
+
+---
+
+## FEATURE 7: Session Security (30 seconds)
+
+**What to say:**
+> "The seventh feature is **Session Security**.
+> 
+> I configured Flask sessions securely:
+> - `HTTPOnly` cookies - JavaScript can't read the session cookie (XSS defense)
+> - `SameSite=Lax` - prevents CSRF at the browser level
+> - Session timeout of 15 minutes - minimizes session hijacking window
+> - **Session fixation prevention** - the session is cleared and regenerated on login
+> 
+> This prevents attackers from stealing or hijacking user sessions."
+
+---
+
+## FEATURE 8: Audit Logging (30 seconds)
+
+**What to say:**
+> "The eighth feature is **Audit Logging** for accountability.
+> 
+> I implemented a dual-logger system:
+> - `logs/security.log` - security events (logins, failures, lockouts)
+> - `logs/audit.log` - detailed audit trail (uploads, downloads, deletions)
+> 
+> Every sensitive action is logged with:
+> - The action performed
+> - The user who did it
+> - The client IP address
+> - Timestamp
+> 
+> This provides **non-repudiation** - users cannot deny their actions.
+> This is a key concept in Computer Security."
+
+**Show the professor:**
+- Open `logs/audit.log` → show the logged actions
+- Open `logs/security.log` → show security events
+
+---
+
+## CLOSING (30 seconds)
+
+> "To summarize, sir, I took a basic FTP project with NO security and implemented
+> 10 Computer Security concepts:
+> 
+> 1. Password Hashing (PBKDF2)
+> 2. CSRF Protection
+> 3. Brute-Force Defense
+> 4. TLS/FTPS Encryption
+> 5. Path Traversal Prevention
+> 6. Security Headers
+> 7. Session Security
+> 8. Audit Logging
+> 9. Input Validation
+> 10. Access Control
+> 
+> Each feature directly relates to concepts taught in this Computer Security course -
+> from cryptography (PBKDF2, TLS) to web security (CSRF, XSS, session management)
+> to network security (encryption in transit) to security principles
+> (defense in depth, accountability, least privilege).
+> 
+> Thank you, sir."
+
+---
+
+## 💡 TIPS FOR PRESENTATION
+
+1. **Speak confidently** - you built this, you know it
+2. **Show the code** - open files in VS Code while explaining
+3. **Show the logs** - prove that logging works
+4. **Try a wrong password 5 times** - show the account lockout
+5. **Show users.json** - prove password is hashed, not plaintext
+6. **Keep it under 5 minutes** - don't go too deep into code, explain concepts
+7. **Use the security terms** - "salt", "hash", "CSRF", "TLS", "brute-force"

@@ -1,0 +1,97 @@
+# ============================================================
+# SECRETS & CREDENTIALS — NEVER commit these!
+# ============================================================
+# Cryptographic secret key (generated on first run)
+.secret_key
+
+# TLS certificates and private keys (generate with: python generate_cert.py)
+certs/*.pem
+certs/*.key
+certs/*.crt
+certs/*.csr
+
+# User database with password hashes (contains sensitive auth data)
+users.json
+
+# ============================================================
+# RUNTIME DATA — generated/user content, not source code
+# ============================================================
+# FTP root directory (contains user files at runtime)
+ftp_root/*
+
+# Keep the ftp_root directory structure but ignore contents
+!ftp_root/.gitkeep
+
+# Uploads directory (temporary file storage)
+uploads/*
+
+# Keep the uploads directory structure but ignore contents
+!uploads/.gitkeep
+
+# Log files (runtime audit/security logs)
+logs/*
+!logs/.gitkeep
+
+# ============================================================
+# BUILD ARTIFACTS & BACKUPS
+# ============================================================
+# Archive/backup files
+*.rar
+*.zip
+*.7z
+*.tar
+*.gz
+
+# ============================================================
+# PYTHON
+# ============================================================
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+build/
+dist/
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# ============================================================
+# IDE & EDITOR FILES
+# ============================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm / IntelliJ
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ============================================================
+# OS FILES
+# ============================================================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
