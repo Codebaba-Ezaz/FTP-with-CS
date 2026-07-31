@@ -1,6 +1,6 @@
 """
 Secure FTP Server (FTPS)
-------------------------
+-----------------------
 Implements Computer Security concepts:
 1. Transport Layer Security (TLS) - encrypts FTP traffic in transit
 2. Password Hashing (PBKDF2) - secure credential storage
@@ -101,10 +101,17 @@ class SecureAuthorizer(DummyAuthorizer):
         """
         Validate credentials against the secure UserDB.
         (PBKDF2 hashed, constant-time comparison)
+        
+        Note: user_db.reload() is called here because the web frontend
+        runs in a separate process and may have added/removed users.
+        Reloading ensures the FTP server always has the latest data.
         """
         # Anonymous user check
         if username == "anonymous":
             return True
+
+        # Reload user database from disk to pick up changes from web frontend
+        user_db.reload()
 
         # Check if user exists in DB
         if not user_db.user_exists(username):

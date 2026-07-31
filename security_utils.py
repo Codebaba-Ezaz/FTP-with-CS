@@ -306,15 +306,32 @@ def validate_upload(file_storage) -> bool:
 # LOGIN REQUIRED DECORATOR
 # ============================================================
 def login_required(func):
-    """Ensure only authenticated admin users can access the view."""
+    """Ensure only authenticated admin users can access the view.
+    
+    Accepts any user that exists in the user database (not just a hardcoded
+    admin username). This allows admins to create additional admin accounts
+    via the web frontend.
+    """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if "username" not in session or session.get("username") != config.ADMIN_USER:
+        username = session.get("username")
+        if not username:
             security_log.log_event(
-                f"UNAUTHORIZED access attempt to {request.path}",
+                f"UNAUTHORIZED access attempt to {request.path} (not logged in)",
                 level="WARNING"
             )
             flash("Please login as admin to access this feature.", "warning")
+            return redirect(url_for("login"))
+        # Verify the user still exists in the database
+        # (avoids stale sessions for deleted users)
+        from user_db import user_db
+        if not user_db.user_exists(username):
+            security_log.log_event(
+                f"UNAUTHORIZED access attempt to {request.path} (user '{username}' not in DB)",
+                level="WARNING"
+            )
+            session.clear()
+            flash("Your account no longer exists. Please contact an administrator.", "danger")
             return redirect(url_for("login"))
         return func(*args, **kwargs)
     return wrapper

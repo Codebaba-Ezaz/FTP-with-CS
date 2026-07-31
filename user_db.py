@@ -51,14 +51,20 @@ class UserDB:
     def _save(self):
         """Persist users to disk with restricted permissions."""
         with self._lock:
-            with open(self.db_file, "w", encoding="utf-8") as f:
-                json.dump(self._users, f, indent=2)
-            # Restrict permissions (POSIX only; best-effort on Windows)
             try:
-                import os
-                os.chmod(self.db_file, 0o600)
-            except Exception:
-                pass
+                with open(self.db_file, "w", encoding="utf-8") as f:
+                    json.dump(self._users, f, indent=2)
+                    f.flush()
+                # Restrict permissions (POSIX only; best-effort on Windows)
+                try:
+                    import os
+                    os.chmod(self.db_file, 0o600)
+                except Exception:
+                    pass
+            except OSError as e:
+                # Log the error but don't crash — the in-memory data is still valid
+                import logging
+                logging.getLogger("security").error(f"Failed to save user database: {e}")
 
     def add_user(self, username: str, password: str, permissions: str = "elradfmwMT"):
         """
@@ -112,6 +118,20 @@ class UserDB:
 
     def user_exists(self, username: str) -> bool:
         return username in self._users
+
+    def reload(self):
+        """Reload users from disk. Useful when another process modifies users.json."""
+        with self._lock:
+            self._load()
+
+    def delete_user(self, username: str) -> bool:
+        """Delete a user from the database. Returns True if deleted, False if not found."""
+        with self._lock:
+            if username in self._users:
+                del self._users[username]
+                self._save()
+                return True
+            return False
 
 
 # ============================================================
