@@ -14,6 +14,8 @@ Implements Computer Security concepts:
 import os
 import ftplib
 import ssl
+import socket
+import threading
 import humanize
 from pathlib import Path
 from datetime import datetime
@@ -50,8 +52,32 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SE
 
 # --- FTP Server Details ---
 FTP_HOST = "localhost"
-FTP_PORT = config.FTP_PORT
-FTP_USE_TLS = True
+FTP_PORT = config.FTP_TLS_PORT if config.FTP_REQUIRE_TLS else config.FTP_PORT
+FTP_USE_TLS = config.FTP_REQUIRE_TLS
+
+
+def start_ftp_listener_if_needed():
+    """Start the FTP/FTPS server in the background when running the web app directly."""
+    try:
+        with socket.create_connection((FTP_HOST, FTP_PORT), timeout=1):
+            return
+    except OSError:
+        pass
+
+    def run_server():
+        import ftp_server
+        ftp_server.main()
+
+    thread = threading.Thread(target=run_server, daemon=True)
+    thread.start()
+
+    for _ in range(10):
+        try:
+            with socket.create_connection((FTP_HOST, FTP_PORT), timeout=1):
+                return
+        except OSError:
+            import time
+            time.sleep(0.5)
 
 
 # ============================================================
@@ -71,20 +97,28 @@ def inject_csrf_token():
 
 
 # ============================================================
+# CONTEXT PROCESSOR - inject admin username
+# ============================================================
+@app.context_processor
+def inject_admin_user():
+    """Make the admin username available to all templates."""
+    return dict(admin_username=config.ADMIN_USER)
+
+
+# ============================================================
 # SECURE FTP CONNECTION (FTPS with TLS)
 # ============================================================
 def get_ftp_connection():
-    ftp = ftplib.FTP_TLS() if FTP_USE_TLS else ftplib.FTP()
+    ftp = ftplib.FTP_TLS() if config.FTP_REQUIRE_TLS else ftplib.FTP()
 
     try:
-        ftp.connect(FTP_HOST, FTP_PORT, timeout=3)
+        ftp.connect(FTP_HOST, FTP_PORT, timeout=5)
 
-        if FTP_USE_TLS:
+        if config.FTP_REQUIRE_TLS:
             ftp.auth()
             ftp.prot_p()
 
         username = session.get('username')
-        # Allow any authenticated admin user to connect via FTP
         if username and '_auth_password' in session:
             ftp.login(username, session['_auth_password'])
         else:
@@ -179,11 +213,21 @@ def list_files(remote_path="."):
         flash("Invalid path. Access denied.", "danger")
         return redirect(url_for('list_files'))
 
+    is_admin = session.get('username') == config.ADMIN_USER
+
+    # ezaz_files is the admin's private directory - only the admin may enter it.
+    # This now applies to guests AND to other logged-in (non-admin) users,
+    # since multiple accounts can log in.
+    if not is_admin and "ezaz_files" in remote_path:
+        security_log.log_event(
+            f"Non-admin blocked from accessing ezaz_files: {remote_path} "
+            f"(user='{session.get('username', 'guest')}')",
+            level="WARNING"
+        )
+        flash("Access denied. This is a private admin directory.", "danger")
+        return redirect(url_for('list_files'))
+
     if 'username' not in session:
-        if "ezaz_files" in remote_path:
-            security_log.log_event(f"GUEST blocked from accessing ezaz_files: {remote_path}", level="WARNING")
-            flash("Access denied. This is a private admin directory.", "danger")
-            return redirect(url_for('list_files'))
         if remote_path != "." and remote_path != "public" and not remote_path.startswith("public/"):
             security_log.log_event(f"GUEST tried to access restricted path: {remote_path}", level="WARNING")
             flash("Guests can only access the public directory.", "warning")
@@ -200,6 +244,8 @@ def list_files(remote_path="."):
             entries = [e for e in entries if e.get('name') == 'public']
         else:
             entries = [e for e in entries if e.get('name') != 'ezaz_files']
+    elif not is_admin:
+        entries = [e for e in entries if e.get('name') != 'ezaz_files']
 
     entries.sort(key=lambda x: (x.get('type') != 'dir', x.get('name').lower()))
 
@@ -236,10 +282,14 @@ def login():
             flash(f"Account temporarily locked. Try again in {minutes}m {seconds}s.", "danger")
             return redirect(url_for('login'))
 
-        # Accept any user that exists in the user database
+        # Reload from disk so users added by another process (or the
+        # /setup route / admin tools) are picked up immediately.
+        user_db.reload()
+
+        # Any user present in user_db.py may log in - not just ADMIN_USER.
         if not user_db.user_exists(username):
             login_tracker.record_failure(username)
-            security_log.log_event(f"LOGIN FAILED for user '{username}'", level="WARNING")
+            security_log.log_event(f"LOGIN FAILED for unknown user '{username}'", level="WARNING")
             flash("Invalid credentials.", "danger")
             return redirect(url_for('login'))
 
@@ -250,10 +300,14 @@ def login():
             return redirect(url_for('login'))
 
         try:
-            ftp = ftplib.FTP_TLS()
-            ftp.connect(FTP_HOST, FTP_PORT, timeout=3)
-            ftp.auth()
-            ftp.prot_p()
+            if config.FTP_REQUIRE_TLS:
+                ftp = ftplib.FTP_TLS()
+                ftp.connect(FTP_HOST, FTP_PORT, timeout=5)
+                ftp.auth()
+                ftp.prot_p()
+            else:
+                ftp = ftplib.FTP()
+                ftp.connect(FTP_HOST, FTP_PORT, timeout=5)
             ftp.login(username, password)
             ftp.quit()
 
@@ -285,93 +339,6 @@ def logout():
     session.clear()
     flash("You have been securely logged out.", "info")
     return redirect(url_for('list_files'))
-
-
-# ============================================================
-# ADMIN USER MANAGEMENT
-# ============================================================
-@app.route('/admin/users')
-@login_required
-def admin_users():
-    """Admin page: create new admin users and view existing users."""
-    users = []
-    for uname in user_db.list_users():
-        info = user_db.get_user(uname)
-        if info:
-            users.append({'username': uname, 'created': info.get('created', 'N/A')})
-
-    return render_template('admin_users.html', users=users)
-
-
-@app.route('/admin/users/create', methods=['POST'])
-@login_required
-@csrf_protect
-def admin_create_user():
-    """Create a new admin user (hashing done by frontend via user_db.add_user)."""
-    username = request.form.get('username', '').strip()
-    password = request.form.get('password', '')
-    confirm = request.form.get('confirm_password', '')
-
-    if not username or len(username) < 3:
-        flash("Username must be at least 3 characters.", "danger")
-        return redirect(url_for('admin_users'))
-
-    import re
-    if not re.match(r'^[a-zA-Z0-9_]+$', username):
-        flash("Username can only contain letters, numbers, and underscores.", "danger")
-        return redirect(url_for('admin_users'))
-
-    if not password or len(password) < 8:
-        flash("Password must be at least 8 characters.", "danger")
-        return redirect(url_for('admin_users'))
-
-    if password != confirm:
-        flash("Passwords do not match.", "danger")
-        return redirect(url_for('admin_users'))
-
-    if user_db.user_exists(username):
-        flash(f"User '{username}' already exists.", "warning")
-        return redirect(url_for('admin_users'))
-
-    # Hash is created inside user_db.add_user() using PBKDF2-HMAC-SHA256
-    user_db.add_user(username, password)
-    security_log.log_event(f"ADMIN USER CREATED by {session.get('username')}: '{username}'", level="INFO")
-    security_log.log_audit(action="ADMIN_CREATE", user=session.get('username', 'unknown'),
-                           details=f"Created admin user: {username}")
-
-    flash(f"Admin user '{username}' created successfully!", "success")
-    return redirect(url_for('admin_users'))
-
-
-@app.route('/admin/users/delete/<username>', methods=['POST'])
-@login_required
-@csrf_protect
-def admin_delete_user(username):
-    """Delete an admin user. Prevents self-deletion."""
-    current_user = session.get('username')
-
-    # Security: cannot delete yourself
-    if username == current_user:
-        flash("You cannot remove your own account.", "danger")
-        return redirect(url_for('admin_users'))
-
-    if not user_db.user_exists(username):
-        flash(f"User '{username}' does not exist.", "warning")
-        return redirect(url_for('admin_users'))
-
-    # Delete the user from the database using the proper method
-    deleted = user_db.delete_user(username)
-
-    if not deleted:
-        flash(f"User '{username}' does not exist.", "warning")
-        return redirect(url_for('admin_users'))
-
-    security_log.log_event(f"ADMIN USER DELETED by {current_user}: '{username}'", level="WARNING")
-    security_log.log_audit(action="ADMIN_DELETE", user=current_user,
-                           details=f"Deleted admin user: {username}")
-
-    flash(f"Admin user '{username}' removed successfully.", "success")
-    return redirect(url_for('admin_users'))
 
 
 # ============================================================
@@ -572,6 +539,8 @@ def setup():
 # MAIN
 # ============================================================
 if __name__ == '__main__':
+    start_ftp_listener_if_needed()
+
     print("=" * 60)
     print("  SECURE WEB FRONTEND")
     print(f"  Secret Key: Loaded from file (256-bit random)")
@@ -581,6 +550,7 @@ if __name__ == '__main__':
     print(f"  Rate Limiting: {config.MAX_LOGIN_ATTEMPTS} attempts / {config.LOCKOUT_DURATION // 60}min")
     print(f"  Security Headers: Enabled")
     print(f"  Audit Log: {config.AUDIT_LOG_FILE}")
+    print(f"  FTP Require TLS: {config.FTP_REQUIRE_TLS}")
     print("=" * 60)
     print("  NOTE: For first run, visit http://localhost:5000/setup")
     print("        to create the admin user.")

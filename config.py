@@ -60,6 +60,8 @@ PERMANENT_SESSION_LIFETIME = 900    # Session expires after 15 minutes (minimize
 # ============================================================
 FTP_HOST = "0.0.0.0"
 FTP_PORT = 2121
+# FTPS runs on a separate port so plain FTP and TLS can be demoed side by side.
+FTP_TLS_PORT = 2122
 
 # TLS certificate paths (generate with generate_cert.py)
 TLS_CERT_FILE = CERT_DIR / "cert.pem"
@@ -87,8 +89,8 @@ PBKDF2_ITERATIONS = 1_000
 # ============================================================
 # Account lockout after N failed attempts
 MAX_LOGIN_ATTEMPTS = 5
-# Lockout duration in seconds (15 minutes)
-LOCKOUT_DURATION = 900
+# Lockout duration in seconds (10 seconds)
+LOCKOUT_DURATION = 10
 
 # ============================================================
 # SECURITY HEADERS (HTTP response headers)

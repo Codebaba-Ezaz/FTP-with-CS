@@ -1,11 +1,3 @@
-"""
-User Database Module
---------------------
-Stores user credentials SECURELY:
-- Passwords are stored as PBKDF2 hashes, NEVER plaintext
-- Uses HMAC-SHA256 via hashlib.pbkdf2_hmac
-- This demonstrates the "Password Storage" concept from Computer Security
-"""
 
 import json
 import threading

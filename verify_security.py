@@ -14,8 +14,9 @@ try:
     print(f"[OK] config.py loaded")
     print(f"     Secret Key: {'*' * 10 + config.SECRET_KEY[-4:]}")
     print(f"     FTP Port: {config.FTP_PORT}")
+    print(f"     FTPS Port: {config.FTP_TLS_PORT}")
     print(f"     Max Attempts: {config.MAX_LOGIN_ATTEMPTS}")
-    print(f"     Lockout: {config.LOCKOUT_DURATION // 60} min")
+    print(f"     Lockout: {config.LOCKOUT_DURATION} seconds")
 except Exception as e:
     print(f"[FAIL] config.py: {e}")
 
