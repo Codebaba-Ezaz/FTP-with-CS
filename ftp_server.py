@@ -1,5 +1,5 @@
 import os
-import ssl
+
 from pyftpdlib.authorizers import DummyAuthorizer, AuthenticationFailed
 from pyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from pyftpdlib.servers import FTPServer
@@ -10,43 +10,26 @@ from user_db import user_db
 
 
 class SecureFTPHandler(TLS_FTPHandler):
-    """
-    FTPS Handler with TLS encryption.
-    TLS_FTPHandler from pyftpdlib wraps FTP in TLS (RFC 4217).
-    
-    This ensures:
-    - Username + password are NEVER sent in plaintext
-    - All file transfers are encrypted
-    - Man-in-the-middle attacks are prevented (with certificate validation)
-    """
-
-    # TLS configuration
     certfile = str(config.TLS_CERT_FILE)
     keyfile = str(config.TLS_KEY_FILE)
-    # Require TLS for all operations (not just auth)
     tls_control_required = True
     tls_data_required = True
 
-    # Ban the "PROT C" command (clear-text data channel)
-    # Forces ALL data transfers to be encrypted
-    prototype = "P"  # Private data channel only
+    prototype = "P"
 
     def on_connect(self):
-        """Log successful connections."""
         security_log.log_event(
             f"FTP CONNECTED: {self.remote_ip}:{self.remote_port}"
         )
         return super().on_connect()
 
     def on_disconnect(self):
-        """Log disconnections."""
         security_log.log_event(
             f"FTP DISCONNECTED: {self.remote_ip}"
         )
         return super().on_disconnect()
 
     def on_login(self, username):
-        """Log successful logins."""
         security_log.log_event(
             f"FTP LOGIN SUCCESS: user='{username}'"
         )
@@ -58,7 +41,6 @@ class SecureFTPHandler(TLS_FTPHandler):
         return super().on_login(username)
 
     def on_login_failed(self, username, password):
-        """Log failed login attempts (without logging the password!)."""
         security_log.log_event(
             f"FTP LOGIN FAILED: user='{username}' (password NOT logged)",
             level="WARNING"
@@ -81,23 +63,12 @@ class SecureFTPHandler(TLS_FTPHandler):
 
 
 class SecureAuthorizer(DummyAuthorizer):
-    """
-    Custom authorizer that uses the UserDB instead of hardcoded credentials.
-    """
-
     def has_user(self, username):
-        """
-        Check if username exists in pyftpdlib's table or the external UserDB.
-        Overriding this ensures pre-login checks pass and new users are synced.
-        """
-        # 1. Check pyftpdlib's internal table first (handles anonymous & already synced users)
         if username in self.user_table:
             return True
 
-        # 2. Reload user database from disk to pick up changes from web frontend
         user_db.reload()
 
-        # 3. If user exists in UserDB, dynamically register them in self.user_table
         if user_db.user_exists(username):
             ftp_root_dir = os.path.join(os.getcwd(), "ftp_root")
             user_info = user_db.get_user(username)
@@ -115,22 +86,14 @@ class SecureAuthorizer(DummyAuthorizer):
         return False
 
     def validate_authentication(self, username, password, handler):
-        """
-        Validate credentials against the secure UserDB.
-        (PBKDF2 hashed, constant-time comparison)
-        """
-        # Anonymous user check
         if username == "anonymous":
             return True
 
-        # Reload user database from disk
         user_db.reload()
 
-        # 1. Check if user exists in DB
         if not user_db.user_exists(username):
             raise AuthenticationFailed("User not found")
 
-        # 2. Verify password against PBKDF2 hash
         if not user_db.verify_credentials(username, password):
             raise AuthenticationFailed("Invalid password")
 
@@ -138,7 +101,6 @@ class SecureAuthorizer(DummyAuthorizer):
 
 
 def main():
-    # Ensure TLS certificates exist if TLS is required
     if config.FTP_REQUIRE_TLS:
         if not (config.TLS_CERT_FILE.exists() and config.TLS_KEY_FILE.exists()):
             print("[!] TLS certificates not found!")
@@ -154,15 +116,12 @@ def main():
         print(f"    python -c \"from user_db import user_db; user_db.add_user('{config.ADMIN_USER}', 'your_password')\"")
         return
 
-    # Create the secure authorizer
     authorizer = SecureAuthorizer()
 
-    # Add anonymous user (read-only, public directory)
     ftp_root_dir = os.path.join(os.getcwd(), "ftp_root")
     os.makedirs(ftp_root_dir, exist_ok=True)
     authorizer.add_anonymous(ftp_root_dir, perm="elr")
 
-    # Add all existing users from UserDB to the authorizer on startup
     for username in user_db.list_users():
         user_info = user_db.get_user(username)
         if user_info and username not in authorizer.user_table:
@@ -175,7 +134,6 @@ def main():
                 "msg_quit": "Goodbye.",
             }
 
-    # Configure the handler based on TLS setting
     if config.FTP_REQUIRE_TLS:
         handler = SecureFTPHandler
         handler.certfile = str(config.TLS_CERT_FILE)
@@ -192,7 +150,6 @@ def main():
 
     handler.authorizer = authorizer
 
-    # Server settings
     port = config.FTP_TLS_PORT if config.FTP_REQUIRE_TLS else config.FTP_PORT
     address = (config.FTP_HOST, port)
     server = FTPServer(address, handler)

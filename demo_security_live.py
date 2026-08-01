@@ -1,10 +1,3 @@
-"""
-LIVE SECURITY DEMONSTRATION - PROOF THAT SECURITY WORKS
-----------------------------------------------------------------
-This script starts the Flask server and performs REAL attacks
-to show they FAIL.
-"""
-
 import json
 import time
 import threading
@@ -13,7 +6,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-# Global flag to track if server is running
 server_running = False
 
 
@@ -52,7 +44,6 @@ def start_server():
     web_frontend.app.run(host='127.0.0.1', port=8080, debug=False, use_reloader=False)
 
 def demo_password_cracking():
-    """PROOF: Show real users.json hash and cracking failure"""
     print("\n" + "="*70)
     print("  1. PASSWORD HASHING - CRACKING ATTEMPT FAILS")
     print("="*70)
@@ -66,9 +57,9 @@ def demo_password_cracking():
         print(f"Hash: {pw_hash}")
         print(f"\nTrying to crack...")
         
-        common = ["password", "123456", "admin", "test", "hello", 
-                  "password123", "admin123", "test123", "qwerty", "abc123",
-                  "mypassword", "letmein", "welcome", "monkey", "dragon"]
+        common = ["password", "123456", "admin", "test", "hello",
+              "password123", "admin123", "test123", "qwerty", "abc123",
+              "mypassword", "letmein", "welcome", "monkey", "dragon"]
         
         from security_utils import verify_password
         for pwd in common:
@@ -81,14 +72,12 @@ def demo_password_cracking():
         print(f"    PBKDF2 hash + salt prevents cracking")
 
 def demo_csrf_live():
-    """PROOF: CSRF attack fails against running server"""
     print("\n" + "="*70)
     print("  2. CSRF PROTECTION - LIVE ATTACK BLOCKED")
     print("="*70)
     
     base = "http://127.0.0.1:8080"
     
-    # Step 1: Try to access without login
     print("\n[Step 1] Attacker tries DELETE without being logged in")
     try:
         r = post_form(f"{base}/delete", {
@@ -102,7 +91,6 @@ def demo_csrf_live():
     except Exception as e:
         print(f"  -> Connection error: {e}")
     
-    # Step 2: Try CSRF attack with fake token
     print("\n[Step 2] Attacker tries POST with fake CSRF token")
     try:
         r = post_form(f"{base}/delete", {
@@ -116,7 +104,6 @@ def demo_csrf_live():
     except Exception as e:
         print(f"  -> Connection error: {e}")
     
-    # Step 3: Explain why attacker can't get real token
     print("\n[Step 3] Why attacker cannot get valid CSRF token")
     print("  1. Token stored in server-side session")
     print("  2. Token = 43 random chars (256-bit entropy)")
@@ -126,7 +113,6 @@ def demo_csrf_live():
     print("\n[+] CSRF attack BLOCKED")
 
 def demo_path_traversal():
-    """PROOF: Path traversal blocked"""
     print("\n" + "="*70)
     print("  3. PATH TRAVERSAL - ALL ATTACKS BLOCKED")
     print("="*70)
@@ -152,7 +138,6 @@ def demo_path_traversal():
     print(f"\n[+] All path traversal attacks FAILED")
 
 def demo_rate_limiting():
-    """PROOF: Rate limiting slows brute-force"""
     print("\n" + "="*70)
     print("  4. RATE LIMITING - BRUTE-FORCE BLOCKED")
     print("="*70)
@@ -192,16 +177,14 @@ def main():
 
     print("Starting Flask server in background...")
     
-    # Start server in background
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
     
-    time.sleep(3)  # Wait for server to start
+    time.sleep(3)
     
     print("Server started at http://127.0.0.1:8080")
     
     try:
-        # Run demonstrations
         demo_password_cracking()
         
         print("\n\nNote: CSRF and Rate Limiting demos require server running.")

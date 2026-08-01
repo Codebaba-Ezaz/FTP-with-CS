@@ -1,6 +1,3 @@
-"""
-Test script for all security modules.
-"""
 import sys
 sys.path.insert(0, 'd:/my_ftp_project')
 
@@ -12,7 +9,6 @@ print("=" * 60)
 print("SECURITY MODULE TESTS")
 print("=" * 60)
 
-# 1. Password Hashing Test
 print("\n[1] Password Hashing (PBKDF2-SHA256)")
 h = hash_password("lab_exam_password")
 print(f"    Hash format: {h[:60]}...")
@@ -32,14 +28,11 @@ h2 = hash_password("lab_exam_password")
 assert verify_password("lab_exam_password", h2), "New hash should also verify"
 print("    ✓ Different salt, still verifies OK")
 
-# 2. Path Traversal Prevention
 print("\n[2] Path Traversal Prevention")
 
-# Normal paths should work
 assert sanitize_ftp_path("test/file.txt") == "test/file.txt"
 print("    ✓ Normal path accepted")
 
-# '..' should be rejected
 try:
     sanitize_ftp_path("../secret")
     print("    ✗ FAIL: Should have rejected ../secret")
@@ -55,7 +48,6 @@ try:
 except ValueError:
     print("    ✓ Absolute paths rejected OK")
 
-# 3. Filename Sanitization
 print("\n[3] Filename Sanitization")
 safe = sanitize_filename("myfile.txt")
 assert safe == "myfile.txt"
@@ -84,13 +76,10 @@ try:
 except ValueError:
     print("    ✓ Hidden files rejected OK")
 
-# 4. Path traversal in filenames
-# The function strips directory components (returns just the basename)
 result = sanitize_filename("../../etc/passwd")
 assert result == "passwd", f"Should strip path, got: {result}"
 print("    ✓ Path traversal in filename stripped to basename OK")
 
-# But if it's just '..' or a hidden file it should be rejected
 try:
     sanitize_filename("..")
     print("    ✗ FAIL: Should have rejected '..'")

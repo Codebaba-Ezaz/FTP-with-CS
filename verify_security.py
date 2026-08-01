@@ -1,6 +1,3 @@
-"""
-Quick verification of all security modules.
-"""
 import sys
 import os
 
@@ -8,7 +5,6 @@ print("=" * 60)
 print("SECURE FTP PROJECT - VERIFICATION")
 print("=" * 60)
 
-# 1. Verify config
 try:
     import config
     print(f"[OK] config.py loaded")
@@ -20,14 +16,12 @@ try:
 except Exception as e:
     print(f"[FAIL] config.py: {e}")
 
-# 2. Verify security_utils
 try:
     from security_utils import hash_password, verify_password
     from security_utils import sanitize_ftp_path, sanitize_filename
     from security_utils import CSRFProtect, login_tracker
     print(f"[OK] security_utils.py loaded")
-    
-    # Test hashing
+
     h = hash_password("testpw123")
     assert verify_password("testpw123", h), "Password verification failed"
     print(f"     PBKDF2 password hashing: WORKING")
@@ -35,7 +29,6 @@ try:
 except Exception as e:
     print(f"[FAIL] security_utils.py: {e}")
 
-# 3. Verify user_db
 try:
     from user_db import user_db
     print(f"[OK] user_db.py loaded")
@@ -44,7 +37,6 @@ try:
 except Exception as e:
     print(f"[FAIL] user_db.py: {e}")
 
-# 4. Verify ftp_server
 try:
     import ftp_server
     print(f"[OK] ftp_server.py loaded")
@@ -53,7 +45,6 @@ try:
 except Exception as e:
     print(f"[FAIL] ftp_server.py: {e}")
 
-# 5. Verify certificates exist
 try:
     from pathlib import Path
     cert = Path("certs/cert.pem")

@@ -1,24 +1,7 @@
-"""
-SECURE DEMO - Create Admin User
-===============================
-This demonstrates PBKDF2 password hashing.
-PBKDF2 is deliberately slow (~10 seconds on this CPU) so that
-brute-force password cracking becomes IMPRACTICAL.
-
-Watch what happens:
-1. You enter a password
-2. PBKDF2 hashes it with 20,000,000 iterations
-3. It takes ~10 seconds (this is SECURITY, not a bug!)
-4. Only the hash is stored - never the plaintext
-
-Run:  python demo_setup.py
-"""
-
 import sys
 import os
 import time
 
-# Make sure we use the project's modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import config
@@ -42,9 +25,6 @@ print()
 
 start = time.time()
 
-# THE DEMO MOMENT!
-# user_db.add_user() internally uses hash_password() which runs PBKDF2
-# with 20,000,000 iterations. This takes ~10 seconds.
 user_db.add_user(config.ADMIN_USER, "SecurePass@2026")
 
 elapsed = time.time() - start
@@ -52,7 +32,6 @@ print()
 print(f"[OK] Admin user '{config.ADMIN_USER}' created in {elapsed:.2f}s")
 print()
 
-# Show the stored hash (from users.json)
 import json
 with open("users.json", "r") as f:
     data = json.load(f)
@@ -62,7 +41,6 @@ print(f"    {stored_hash[:70]}...")
 print(f"    → Plaintext password is NEVER stored")
 print()
 
-# Verify login works
 print(f"[3] Verifying login (another ~10s PBKDF2 round)...")
 start = time.time()
 verified = user_db.verify_credentials(config.ADMIN_USER, "SecurePass@2026")

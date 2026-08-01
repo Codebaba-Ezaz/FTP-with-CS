@@ -16,7 +16,6 @@ def generate_pbkdf2_hash(password: str, iterations: int = 1000) -> str:
 def main():
     filename = "users.json"
 
-    # 1. Load existing users if the file already exists
     if os.path.exists(filename):
         with open(filename, "r") as f:
             try:
@@ -28,7 +27,6 @@ def main():
 
     print("=== Add Users to users.json ===")
 
-    # 2. Interactive Loop
     while True:
         username = input("\nEnter username: ").strip()
 
@@ -55,7 +53,6 @@ def main():
         if not permissions:
             permissions = "elradfmwMT"
 
-        # 3. Add to dictionary
         users[username] = {
             "password_hash": generate_pbkdf2_hash(password),
             "permissions": permissions,
@@ -64,14 +61,12 @@ def main():
 
         print(f"✓ Added '{username}'")
 
-        # 4. Check if user wants to add another
         add_more = (
             input("\nDo you want to add another user? (y/N): ").strip().lower()
         )
         if add_more != "y":
             break
 
-    # 5. Save everything back to users.json
     with open(filename, "w") as f:
         json.dump(users, f, indent=2)
 

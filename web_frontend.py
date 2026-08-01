@@ -1,16 +1,3 @@
-"""
-Secure Web Frontend
--------------------
-Implements Computer Security concepts:
-1. Session Security - no plaintext passwords in session, HTTPOnly cookies, secure flags
-2. CSRF Protection - token validation for all POST requests
-3. Rate Limiting / Account Lockout - brute-force defense
-4. Path Traversal Prevention - input validation
-5. Security Headers - defense in depth
-6. Audit Logging - accountability
-7. TLS/FTPS Support - encrypted FTP connections
-"""
-
 import os
 import ftplib
 import ssl
@@ -38,26 +25,22 @@ from security_utils import (
 )
 from user_db import user_db
 
-# --- Flask App Configuration ---
 app = Flask(__name__)
 app.config['SECRET_KEY'] = config.SECRET_KEY
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 app.config['UPLOAD_FOLDER'] = str(config.UPLOAD_DIR)
 
-# --- Secure Session Settings ---
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(seconds=config.PERMANENT_SESSION_LIFETIME)
 
-# --- FTP Server Details ---
 FTP_HOST = "localhost"
 FTP_PORT = config.FTP_TLS_PORT if config.FTP_REQUIRE_TLS else config.FTP_PORT
 FTP_USE_TLS = config.FTP_REQUIRE_TLS
 
 
 def start_ftp_listener_if_needed():
-    """Start the FTP/FTPS server in the background when running the web app directly."""
     try:
         with socket.create_connection((FTP_HOST, FTP_PORT), timeout=1):
             return
@@ -80,34 +63,21 @@ def start_ftp_listener_if_needed():
             time.sleep(0.5)
 
 
-# ============================================================
-# SECURITY HEADERS MIDDLEWARE
-# ============================================================
 @app.after_request
 def add_security_headers(response):
     return apply_security_headers(response)
 
 
-# ============================================================
-# CONTEXT PROCESSOR - inject CSRF token into all templates
-# ============================================================
 @app.context_processor
 def inject_csrf_token():
     return dict(csrf_token=CSRFProtect.generate_token())
 
 
-# ============================================================
-# CONTEXT PROCESSOR - inject admin username
-# ============================================================
 @app.context_processor
 def inject_admin_user():
-    """Make the admin username available to all templates."""
     return dict(admin_username=config.ADMIN_USER)
 
 
-# ============================================================
-# SECURE FTP CONNECTION (FTPS with TLS)
-# ============================================================
 def get_ftp_connection():
     ftp = ftplib.FTP_TLS() if config.FTP_REQUIRE_TLS else ftplib.FTP()
 
@@ -122,7 +92,7 @@ def get_ftp_connection():
         if username and '_auth_password' in session:
             ftp.login(username, session['_auth_password'])
         else:
-            ftp.login()  # Anonymous fallback
+            ftp.login()
 
         return ftp
     except ftplib.all_errors as e:
@@ -131,9 +101,6 @@ def get_ftp_connection():
         return None
 
 
-# ============================================================
-# LOCAL FILESYSTEM HELPERS
-# ============================================================
 def get_local_path(remote_path):
     if remote_path == "." or not remote_path:
         return config.FTP_ROOT
@@ -183,9 +150,6 @@ def list_local_directory(remote_path):
     return entries
 
 
-# ============================================================
-# HELPER FUNCTIONS
-# ============================================================
 def generate_breadcrumbs(path):
     if path == ".": return []
     clean_path = path.strip('./')
@@ -199,9 +163,6 @@ def generate_breadcrumbs(path):
     return breadcrumbs
 
 
-# ============================================================
-# WEB ROUTES
-# ============================================================
 @app.route("/")
 @app.route("/files/")
 @app.route("/files/<path:remote_path>")
@@ -215,9 +176,6 @@ def list_files(remote_path="."):
 
     is_admin = session.get('username') == config.ADMIN_USER
 
-    # ezaz_files is the admin's private directory - only the admin may enter it.
-    # This now applies to guests AND to other logged-in (non-admin) users,
-    # since multiple accounts can log in.
     if not is_admin and "ezaz_files" in remote_path:
         security_log.log_event(
             f"Non-admin blocked from accessing ezaz_files: {remote_path} "
@@ -282,11 +240,8 @@ def login():
             flash(f"Account temporarily locked. Try again in {minutes}m {seconds}s.", "danger")
             return redirect(url_for('login'))
 
-        # Reload from disk so users added by another process (or the
-        # /setup route / admin tools) are picked up immediately.
         user_db.reload()
 
-        # Any user present in user_db.py may log in - not just ADMIN_USER.
         if not user_db.user_exists(username):
             login_tracker.record_failure(username)
             security_log.log_event(f"LOGIN FAILED for unknown user '{username}'", level="WARNING")
@@ -341,9 +296,6 @@ def logout():
     return redirect(url_for('list_files'))
 
 
-# ============================================================
-# FILE OPERATIONS (using local filesystem)
-# ============================================================
 @app.route('/delete', methods=['POST'])
 @login_required
 @csrf_protect
